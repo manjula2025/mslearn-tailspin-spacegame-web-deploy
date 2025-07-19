@@ -1,5 +1,5 @@
 trigger:
-- release-pipeline
+- '*'
 
 variables:
   buildConfiguration: 'Release'
@@ -7,13 +7,13 @@ variables:
   dotnetSdkVersion: '8.x'
 
 stages:
-- stage: Build
+- stage: 'Build'
   displayName: 'Build the web application'
-  jobs:
-  - job: BuildJob
+  jobs: 
+  - job: 'Build'
     displayName: 'Build job'
     pool:
-      name: 'Default'  
+      name: 'Default'  # Self-hosted agent pool
 
     steps:
     - task: UseDotNet@2
@@ -75,3 +75,26 @@ stages:
         pathToPublish: '$(Build.ArtifactStagingDirectory)'
         artifactName: 'drop'
         publishLocation: 'Container'
+
+- stage: 'Deploy'
+  displayName: 'Deploy the web application'
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    pool:
+      name: 'Default'  # Self-hosted agent pool
+    environment: dev
+    variables:
+    - group: Release
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appName: '$(WebAppName)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
