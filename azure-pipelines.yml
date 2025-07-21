@@ -17,7 +17,7 @@ schedules:
   always: false
 
 pool:
-  name: 'Default'  # Self-hosted agent pool
+  name: 'Default'
 
 variables:
   buildConfiguration: 'Release'
@@ -35,7 +35,6 @@ stages:
       name: 'Default'
       demands:
         - npm
-
     steps:
     - task: UseDotNet@2
       displayName: 'Use .NET SDK $(dotnetSdkVersion)'
@@ -101,7 +100,8 @@ stages:
   displayName: 'Deploy to the dev environment'
   dependsOn: Build
   condition: |
-    and(
+    and
+    (
       succeeded(),
       eq(variables['Build.SourceBranchName'], variables['releaseBranchName'])
     )
@@ -128,11 +128,6 @@ stages:
 - stage: 'Test'
   displayName: 'Deploy to the test environment'
   dependsOn: Dev
-  condition: |
-    or(
-      eq(variables['Build.Reason'], 'Schedule'),
-      succeeded()
-    )
   jobs:
   - deployment: Deploy
     pool:
@@ -151,4 +146,27 @@ stages:
             inputs:
               azureSubscription: 'Resource Manager - Tailspin - Space Game'
               appName: '$(WebAppNameTest)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+
+- stage: 'Staging'
+  displayName: 'Deploy to the staging environment'
+  dependsOn: Test
+  jobs:
+  - deployment: Deploy
+    pool:
+      name: 'Default'
+    environment: staging
+    variables:
+      - group: Release
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appName: '$(WebAppNameStaging)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
